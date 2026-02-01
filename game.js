@@ -9136,86 +9136,6 @@ function spawnEnemy() {
     }
 }
 
-function testBoss() {
-    // Get selected boss index from dropdown
-    const select = document.getElementById('boss-select');
-    debugBossIndex = parseInt(select.value);
-    
-    if (debugBossIndex < 0) {
-        // Normal game
-        resetGame();
-        return;
-    }
-    
-    // Start game in boss test mode
-    initAudio();
-    stopBossChargingSound();
-    startMusic();
-    
-    // Set level to match the boss index so the correct boss type is used
-    // Boss types cycle based on (level - 1) % BOSS_TYPES.length
-    const testLevel = debugBossIndex + 1;
-    
-    gameState = {
-        running: true,
-        paused: false,
-        gameMode: selectedGameMode, // 'music' or 'typing'
-        difficulty: selectedDifficulty, // easy, normal, hard, insane, crazy
-        level: testLevel,
-        score: 0,
-        health: 100,
-        maxHealth: 100,
-        enemies: [],
-        projectiles: [],
-        bossProjectiles: [],
-        boss: null,
-        bossActive: false,
-        enemiesDefeated: 0,
-        enemiesToSpawn: 0, // No regular enemies in test mode
-        lastSpawnTime: 0,
-        activeNotes: new Set(),
-        midiConnected: false,
-        combo: 0,
-        maxCombo: 0,
-        comboBreakTimer: 0,
-        comboBreakDuration: 45,
-        comboBreakValue: 0,
-        comboBreakParticles: [],
-        multiplierScale: 1,
-        multiplierScalePhase: 'idle',
-        multiplierScaleTimer: 0,
-        cameraZoom: 1.0,
-        targetZoom: 1.0,
-        zoomSpeed: 0.02,
-        powerup: null,
-        lastPowerupSpawn: 0,
-        powerupSpawnInterval: 10000, // Initial spawn after 10s
-        activePowerup: null,
-        powerupShotsRemaining: 0,
-        healthRestoreActive: false,
-        healthRestoreStart: 0,
-        healthRestoreTarget: 0,
-        healthRestoreTimer: 0,
-        healthRestoreDuration: 180,
-        maxAmmo: 5,
-        currentAmmo: 5,
-        ammoRechargeTimer: 0,
-        ammoRechargeRate: 120,
-        ammoFlash: [0, 0, 0, 0, 0]
-    };
-    
-    lightningProjectiles = [];
-    particles = [];
-    bombExplosions = [];
-    
-    document.getElementById('start-screen').classList.add('hidden');
-    document.getElementById('game-over-screen').classList.add('hidden');
-    document.getElementById('level-complete-screen').classList.add('hidden');
-    
-    // Immediately start boss fight
-    startBossFight();
-}
-
 function startBossFight() {
     gameState.bossActive = true;
     gameState.boss = new Boss(gameState.level);
@@ -9289,9 +9209,6 @@ function gameOver() {
         document.getElementById('game-over-screen').classList.remove('hidden');
     }
 }
-
-// Debug mode state
-let debugBossIndex = -1; // -1 = normal game, 0-7 = specific boss
 
 function resetGame() {
     initAudio();
@@ -9749,9 +9666,6 @@ function init() {
     document.getElementById('diff-normal').addEventListener('click', () => updateDifficultySelection('normal'));
     document.getElementById('diff-hard').addEventListener('click', () => updateDifficultySelection('hard'));
     document.getElementById('diff-crazy').addEventListener('click', () => updateDifficultySelection('crazy'));
-    
-    // Debug: Test Boss button
-    document.getElementById('test-boss-btn').addEventListener('click', testBoss);
     
     // Leaderboard submit button
     document.getElementById('submit-score-btn').addEventListener('click', submitHighScore);
