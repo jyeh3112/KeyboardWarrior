@@ -1,4 +1,4 @@
-# Keyboard Warrior
+# Keymageddon
 
 A 2D top-down arcade survival game where you defeat enemies by playing musical notes or typing letters!
 

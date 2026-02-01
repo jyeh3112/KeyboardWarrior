@@ -1,5 +1,5 @@
 // ============================================
-// KEYBOARD WARRIOR - Main Game File
+// KEYMAGEDDON - Main Game File
 // ============================================
 
 // Canvas setup - fixed size, CSS scales to fit
@@ -9,41 +9,59 @@ canvas.width = 1920;
 canvas.height = 1080;
 
 // ============================================
-// LEADERBOARD SYSTEM (Separate for each mode)
+// GLOBAL LEADERBOARD SYSTEM (Firebase)
 // ============================================
 
-const LEADERBOARD_KEY_MUSIC = 'keyboardWarriorLeaderboard_music';
-const LEADERBOARD_KEY_TYPING = 'keyboardWarriorLeaderboard_typing';
 const MAX_LEADERBOARD_ENTRIES = 10;
 
-function getLeaderboardKey(mode) {
-    return mode === 'typing' ? LEADERBOARD_KEY_TYPING : LEADERBOARD_KEY_MUSIC;
+// Cache for leaderboard data (loaded from Firebase)
+let leaderboardCache = {
+    music: [],
+    typing: []
+};
+
+// Flag to track if Firebase is available
+let firebaseAvailable = typeof firebase !== 'undefined' && firebase.database;
+
+// Get Firebase database path for leaderboard
+function getLeaderboardPath(mode) {
+    return `leaderboards/${mode}`;
 }
 
-function getLeaderboard(mode = 'music') {
-    try {
-        const key = getLeaderboardKey(mode);
-        const data = localStorage.getItem(key);
-        return data ? JSON.parse(data) : [];
-    } catch (e) {
-        return [];
-    }
-}
-
-function saveLeaderboard(leaderboard, mode = 'music') {
-    try {
-        const key = getLeaderboardKey(mode);
-        localStorage.setItem(key, JSON.stringify(leaderboard));
-    } catch (e) {
-        console.warn('Could not save leaderboard to localStorage');
-    }
-}
-
-function addToLeaderboard(name, score, wave, maxCombo, mode = 'music', difficulty = 'normal') {
-    const leaderboard = getLeaderboard(mode);
+// Fetch leaderboard from Firebase (async)
+async function fetchLeaderboardFromFirebase(mode = 'music') {
+    if (!firebaseAvailable) return [];
     
+    try {
+        const snapshot = await database.ref(getLeaderboardPath(mode))
+            .orderByChild('score')
+            .limitToLast(MAX_LEADERBOARD_ENTRIES)
+            .once('value');
+        
+        const data = snapshot.val();
+        if (!data) return [];
+        
+        // Convert object to array and sort by score descending
+        const leaderboard = Object.values(data).sort((a, b) => b.score - a.score);
+        
+        // Update cache
+        leaderboardCache[mode] = leaderboard;
+        return leaderboard;
+    } catch (e) {
+        console.warn('Could not fetch leaderboard from Firebase:', e);
+        return leaderboardCache[mode] || [];
+    }
+}
+
+// Get cached leaderboard (synchronous, for immediate display)
+function getLeaderboard(mode = 'music') {
+    return leaderboardCache[mode] || [];
+}
+
+// Add score to Firebase leaderboard
+async function addToLeaderboardAsync(name, score, wave, maxCombo, mode = 'music', difficulty = 'normal') {
     const entry = {
-        name: name.trim().substring(0, 12) || 'ANONYMOUS',
+        name: (name || '').trim().substring(0, 12) || 'ANONYMOUS',
         score: score,
         wave: wave,
         maxCombo: maxCombo,
@@ -51,20 +69,73 @@ function addToLeaderboard(name, score, wave, maxCombo, mode = 'music', difficult
         date: Date.now()
     };
     
-    leaderboard.push(entry);
-    
-    // Sort by score descending
-    leaderboard.sort((a, b) => b.score - a.score);
-    
-    // Keep only top entries
-    while (leaderboard.length > MAX_LEADERBOARD_ENTRIES) {
-        leaderboard.pop();
+    if (!firebaseAvailable) {
+        // Fallback: just update local cache
+        leaderboardCache[mode].push(entry);
+        leaderboardCache[mode].sort((a, b) => b.score - a.score);
+        leaderboardCache[mode] = leaderboardCache[mode].slice(0, MAX_LEADERBOARD_ENTRIES);
+        return leaderboardCache[mode];
     }
     
-    saveLeaderboard(leaderboard, mode);
-    return leaderboard;
+    try {
+        // Add to Firebase
+        const newRef = database.ref(getLeaderboardPath(mode)).push();
+        await newRef.set(entry);
+        
+        // Fetch updated leaderboard
+        const leaderboard = await fetchLeaderboardFromFirebase(mode);
+        
+        // Clean up: remove entries beyond top 10
+        const snapshot = await database.ref(getLeaderboardPath(mode))
+            .orderByChild('score')
+            .once('value');
+        
+        const allData = snapshot.val();
+        if (allData) {
+            const allEntries = Object.entries(allData)
+                .map(([key, value]) => ({ key, ...value }))
+                .sort((a, b) => b.score - a.score);
+            
+            // Remove entries beyond MAX_LEADERBOARD_ENTRIES
+            for (let i = MAX_LEADERBOARD_ENTRIES; i < allEntries.length; i++) {
+                await database.ref(`${getLeaderboardPath(mode)}/${allEntries[i].key}`).remove();
+            }
+        }
+        
+        return leaderboard;
+    } catch (e) {
+        console.warn('Could not save to Firebase:', e);
+        // Fallback to cache
+        leaderboardCache[mode].push(entry);
+        leaderboardCache[mode].sort((a, b) => b.score - a.score);
+        leaderboardCache[mode] = leaderboardCache[mode].slice(0, MAX_LEADERBOARD_ENTRIES);
+        return leaderboardCache[mode];
+    }
 }
 
+// Synchronous wrapper for backward compatibility
+function addToLeaderboard(name, score, wave, maxCombo, mode = 'music', difficulty = 'normal') {
+    // Fire async operation but don't wait
+    addToLeaderboardAsync(name, score, wave, maxCombo, mode, difficulty);
+    
+    // Immediately update local cache for display
+    const entry = {
+        name: (name || '').trim().substring(0, 12) || 'ANONYMOUS',
+        score: score,
+        wave: wave,
+        maxCombo: maxCombo,
+        difficulty: difficulty,
+        date: Date.now()
+    };
+    
+    leaderboardCache[mode].push(entry);
+    leaderboardCache[mode].sort((a, b) => b.score - a.score);
+    leaderboardCache[mode] = leaderboardCache[mode].slice(0, MAX_LEADERBOARD_ENTRIES);
+    
+    return leaderboardCache[mode];
+}
+
+// Check if score qualifies for leaderboard
 function getLeaderboardPosition(score, mode = 'music') {
     const leaderboard = getLeaderboard(mode);
     
@@ -82,6 +153,21 @@ function getLeaderboardPosition(score, mode = 'music') {
     
     return -1; // Didn't make leaderboard
 }
+
+// Initialize: fetch leaderboards from Firebase on load
+async function initializeLeaderboards() {
+    if (firebaseAvailable) {
+        console.log('Loading global leaderboards from Firebase...');
+        await Promise.all([
+            fetchLeaderboardFromFirebase('music'),
+            fetchLeaderboardFromFirebase('typing')
+        ]);
+        console.log('Leaderboards loaded!');
+    }
+}
+
+// Call initialization
+initializeLeaderboards();
 
 // Difficulty colors for leaderboard display
 const DIFFICULTY_COLORS = {
@@ -132,11 +218,19 @@ function displayLeaderboardList(listElement, leaderboard, highlightScore = -1) {
     });
 }
 
-function displayLeaderboards(highlightScore = -1) {
+async function displayLeaderboards(highlightScore = -1) {
     const currentMode = gameState.gameMode || 'music';
     const otherMode = currentMode === 'music' ? 'typing' : 'music';
     
-    // Get leaderboards for both modes
+    // Refresh from Firebase first
+    if (firebaseAvailable) {
+        await Promise.all([
+            fetchLeaderboardFromFirebase(currentMode),
+            fetchLeaderboardFromFirebase(otherMode)
+        ]);
+    }
+    
+    // Get leaderboards for both modes (from cache)
     const currentLeaderboard = getLeaderboard(currentMode);
     const otherLeaderboard = getLeaderboard(otherMode);
     
@@ -144,7 +238,7 @@ function displayLeaderboards(highlightScore = -1) {
     const mainList = document.getElementById('leaderboard-main-list');
     const mainTitle = document.getElementById('leaderboard-main-title');
     if (mainTitle) {
-        mainTitle.textContent = currentMode === 'music' ? '🎹 MUSIC MODE' : '⌨️ TYPING MODE';
+        mainTitle.textContent = currentMode === 'music' ? '🎹 MUSIC MODE - GLOBAL' : '⌨️ TYPING MODE - GLOBAL';
     }
     displayLeaderboardList(mainList, currentLeaderboard, highlightScore);
     
@@ -152,7 +246,7 @@ function displayLeaderboards(highlightScore = -1) {
     const secondaryList = document.getElementById('leaderboard-secondary-list');
     const secondaryTitle = document.getElementById('leaderboard-secondary-title');
     if (secondaryTitle) {
-        secondaryTitle.textContent = otherMode === 'music' ? '🎹 MUSIC MODE' : '⌨️ TYPING MODE';
+        secondaryTitle.textContent = otherMode === 'music' ? '🎹 MUSIC MODE - GLOBAL' : '⌨️ TYPING MODE - GLOBAL';
     }
     displayLeaderboardList(secondaryList, otherLeaderboard, -1);
 }
@@ -2685,19 +2779,21 @@ function drawUI() {
     ctx.font = 'bold 40px "Courier New", monospace';
     ctx.fillText(`WAVE ${gameState.level}`, canvas.width / 2, 50);
     
-    // Display current scale
-    const currentScale = getScaleForLevel(gameState.level);
-    ctx.font = 'bold 22px "Courier New", monospace';
-    ctx.fillStyle = '#4dffff';
-    ctx.shadowColor = '#4dffff';
-    ctx.shadowBlur = 10;
-    ctx.fillText(currentScale.name.toUpperCase(), canvas.width / 2, 82);
-    ctx.shadowBlur = 0;
-    
-    // Show scale notes
-    ctx.font = '14px "Courier New", monospace';
-    ctx.fillStyle = '#aaaaaa';
-    ctx.fillText(currentScale.notes.join('  '), canvas.width / 2, 102);
+    // Display current scale (music mode only)
+    if (gameState.gameMode === 'music') {
+        const currentScale = getScaleForLevel(gameState.level);
+        ctx.font = 'bold 22px "Courier New", monospace';
+        ctx.fillStyle = '#4dffff';
+        ctx.shadowColor = '#4dffff';
+        ctx.shadowBlur = 10;
+        ctx.fillText(currentScale.name.toUpperCase(), canvas.width / 2, 82);
+        ctx.shadowBlur = 0;
+        
+        // Show scale notes
+        ctx.font = '14px "Courier New", monospace';
+        ctx.fillStyle = '#aaaaaa';
+        ctx.fillText(currentScale.notes.join('  '), canvas.width / 2, 102);
+    }
     
     ctx.textAlign = 'right';
     ctx.font = '18px "Courier New", monospace';
@@ -9600,14 +9696,14 @@ function updateModeSelection(mode) {
         typingBtn.classList.remove('selected');
         musicControls.classList.remove('hidden');
         typingControls.classList.add('hidden');
-        title.textContent = 'KEYBOARD WARRIOR';
+        title.textContent = 'KEYMAGEDDON';
         subtitle.textContent = 'Defeat enemies by playing their keys!';
     } else {
         musicBtn.classList.remove('selected');
         typingBtn.classList.add('selected');
         musicControls.classList.add('hidden');
         typingControls.classList.remove('hidden');
-        title.textContent = 'KEYBOARD WARRIOR';
+        title.textContent = 'KEYMAGEDDON';
         subtitle.textContent = 'Defeat enemies by typing their keys!';
     }
     
