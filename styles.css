@@ -351,14 +351,6 @@ button.diff-btn:hover .diff-name {
 }
 
 
-.diff-description {
-    color: #666;
-    font-size: 12px;
-    margin-top: 12px;
-    font-style: italic;
-    min-height: 18px;
-}
-
 /* Buttons */
 button {
     padding: 18px 50px;

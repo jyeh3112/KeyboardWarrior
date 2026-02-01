@@ -9639,14 +9639,6 @@ function updateDifficultySelection(difficulty) {
             btn.classList.toggle('selected', diff === difficulty);
         }
     });
-    
-    // Update description based on selected mode
-    const descElement = document.getElementById('difficulty-desc');
-    if (descElement && DIFFICULTY_SETTINGS[difficulty]) {
-        const mode = selectedGameMode || 'music';
-        const descKey = mode === 'typing' ? 'descriptionTyping' : 'descriptionMusic';
-        descElement.textContent = DIFFICULTY_SETTINGS[difficulty][descKey];
-    }
 }
 
 function init() {
