@@ -8665,13 +8665,10 @@ let player;
 function playNote(note) {
     if (!gameState.running || gameState.paused) return;
     
-    // Check if there's an active powerup to try (doesn't use ammo, doesn't shoot enemies)
+    // Check if there's an active powerup to try (also shoots enemies with same note)
     if (gameState.powerup && gameState.powerup.alive && gameState.powerup.arrived) {
-        const powerupHandled = gameState.powerup.tryNote(note);
-        if (powerupHandled) {
-            // Successfully hit a powerup note - don't shoot enemies or use ammo
-            return;
-        }
+        gameState.powerup.tryNote(note);
+        // Continue to also shoot enemies with this note
     }
     
     // Check if we have ammo to shoot
