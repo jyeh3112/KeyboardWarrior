@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyboard Warrior</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="start-screen" class="screen">
+            <h1 id="game-title">KEYBOARD WARRIOR</h1>
+            <p id="game-subtitle" class="subtitle">Defeat enemies by playing their keys!</p>
+            
+            <!-- Mode Selection -->
+            <div id="mode-selection">
+                <h3>SELECT MODE</h3>
+                <div class="mode-buttons">
+                    <button id="mode-music" class="mode-btn selected">
+                        <span class="mode-icon">🎹</span>
+                        <span class="mode-name">MUSIC</span>
+                        <span class="mode-desc">Play musical notes</span>
+                    </button>
+                    <button id="mode-typing" class="mode-btn">
+                        <span class="mode-icon">⌨️</span>
+                        <span class="mode-name">TYPING</span>
+                        <span class="mode-desc">Type letters & words</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Difficulty Selection -->
+            <div id="difficulty-selection">
+                <h3>SELECT DIFFICULTY</h3>
+                <div class="difficulty-buttons">
+                    <button id="diff-easy" class="diff-btn">
+                        <span class="diff-name">EASY</span>
+                    </button>
+                    <button id="diff-normal" class="diff-btn selected">
+                        <span class="diff-name">NORMAL</span>
+                    </button>
+                    <button id="diff-hard" class="diff-btn">
+                        <span class="diff-name">HARD</span>
+                    </button>
+                    <button id="diff-crazy" class="diff-btn">
+                        <span class="diff-name">ARE YOU CRAZY?</span>
+                    </button>
+                </div>
+                <p id="difficulty-desc" class="diff-description">Standard gameplay experience</p>
+            </div>
+            
+            <div id="controls-info-music" class="controls-info">
+                <h3>CONTROLS</h3>
+                <div class="key-row">
+                    <span class="key-label">WHITE KEYS:</span>
+                    <span class="keys">A S D F G H J K L</span>
+                </div>
+                <div class="key-row">
+                    <span class="key-label">BLACK KEYS:</span>
+                    <span class="keys">W E &nbsp; T Y U &nbsp; O P</span>
+                </div>
+                <p class="midi-hint">Or connect a MIDI keyboard!</p>
+            </div>
+            
+            <div id="controls-info-typing" class="controls-info hidden">
+                <h3>CONTROLS</h3>
+                <div class="key-row">
+                    <span class="key-label">HOME ROW:</span>
+                    <span class="keys">A S D F J K L</span>
+                </div>
+                <div class="key-row">
+                    <span class="key-label">ALL LETTERS:</span>
+                    <span class="keys">A - Z</span>
+                </div>
+                <p class="midi-hint">Type fast and accurately!</p>
+            </div>
+            
+            <button id="start-btn">START GAME</button>
+            
+            <!-- Debug Mode: Boss Selector -->
+            <div id="debug-panel">
+                <h3>DEBUG: Boss Test Mode</h3>
+                <select id="boss-select">
+                    <option value="-1">Normal Game (No Skip)</option>
+                    <option value="0">Shadow Wraith (voidBeam)</option>
+                    <option value="1">Fire Demon (meteor)</option>
+                    <option value="2">Ice Golem (iceSpike)</option>
+                    <option value="3">Storm Specter (lightning)</option>
+                    <option value="4">Void Lord (blackHole)</option>
+                    <option value="5">Crystal Dragon (laserBeam)</option>
+                    <option value="6">Plague Beast (toxicCloud)</option>
+                    <option value="7">Blood Moon (bloodOrb)</option>
+                </select>
+                <button id="test-boss-btn">TEST BOSS</button>
+            </div>
+        </div>
+
+        <div id="game-over-screen" class="screen hidden">
+            <h1>GAME OVER</h1>
+            <p>You reached Wave <span id="final-level">1</span></p>
+            <p class="final-score">FINAL SCORE: <span id="final-score">0</span></p>
+            <p class="max-combo">MAX COMBO: <span id="max-combo">0</span></p>
+            
+            <!-- Leaderboards Container -->
+            <div id="leaderboards-container">
+                <!-- Main Leaderboard (current mode) -->
+                <div id="leaderboard-main">
+                    <!-- Name entry for high score -->
+                    <div id="name-entry" class="hidden">
+                        <p class="high-score-msg">NEW HIGH SCORE!</p>
+                        <input type="text" id="player-name" maxlength="12" placeholder="Enter your name">
+                        <button id="submit-score-btn">SUBMIT</button>
+                    </div>
+                    
+                    <h2 id="leaderboard-main-title">🎹 MUSIC MODE</h2>
+                    <ol id="leaderboard-main-list"></ol>
+                </div>
+                
+                <!-- Secondary Leaderboard (other mode) -->
+                <div id="leaderboard-secondary">
+                    <h3 id="leaderboard-secondary-title">⌨️ TYPING MODE</h3>
+                    <ol id="leaderboard-secondary-list"></ol>
+                </div>
+            </div>
+            
+            <button id="restart-btn">PLAY AGAIN</button>
+        </div>
+
+        <div id="level-complete-screen" class="screen hidden">
+            <h1>WAVE COMPLETE!</h1>
+            <p>Get ready for Wave <span id="next-level">2</span></p>
+            <button id="continue-btn">CONTINUE</button>
+            <p class="enter-hint">Press SPACE or Middle C to continue</p>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
