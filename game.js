@@ -9272,14 +9272,238 @@ function resetGame() {
 }
 
 // ============================================
-// GAME LOOP
+// GAME LOOP - Fixed Timestep for Consistent Speed
 // ============================================
 
+// Fixed timestep ensures game runs at same speed regardless of framerate
+// On slow computers (30fps), runs 2 updates per frame to keep up
+// On fast computers (120fps), skips updates to maintain consistent speed
+const FIXED_TIMESTEP = 1000 / 60; // ~16.67ms - target 60 logic updates per second
+const MAX_FRAME_TIME = 250; // Cap to prevent spiral of death when tab inactive
 let lastTime = 0;
+let accumulator = 0;
+let gameTimestamp = 0; // Virtual timestamp for game logic (increments by FIXED_TIMESTEP)
+
+// Separate update function for fixed timestep
+function updateGame() {
+    // Spawn enemies
+    if (!gameState.bossActive && gameState.enemiesDefeated < gameState.enemiesToSpawn) {
+        if (gameTimestamp - gameState.lastSpawnTime > CONFIG.enemySpawnRate - gameState.level * 50) {
+            spawnEnemy();
+            gameState.lastSpawnTime = gameTimestamp;
+        }
+    }
+    
+    // Check if boss should appear
+    if (!gameState.bossActive && gameState.enemiesDefeated >= gameState.enemiesToSpawn && gameState.enemies.length === 0) {
+        startBossFight();
+    }
+    
+    // Check if level complete
+    if (gameState.bossActive && gameState.boss && !gameState.boss.alive) {
+        levelComplete();
+    }
+    
+    // Update health restore animation
+    if (gameState.healthRestoreActive) {
+        gameState.healthRestoreTimer++;
+        const progress = Math.min(1, gameState.healthRestoreTimer / gameState.healthRestoreDuration);
+        // Ease-out animation for smooth fill
+        const eased = 1 - Math.pow(1 - progress, 3);
+        gameState.health = gameState.healthRestoreStart + 
+            (gameState.healthRestoreTarget - gameState.healthRestoreStart) * eased;
+        
+        // Spawn healing particles during animation
+        if (Math.random() < 0.3) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 30 + Math.random() * 60;
+            const particle = new Particle(
+                player.x + Math.cos(angle) * dist,
+                player.y + Math.sin(angle) * dist,
+                '#00ff00'
+            );
+            particle.vx = -Math.cos(angle) * 2;
+            particle.vy = -Math.sin(angle) * 2;
+            particles.push(particle);
+        }
+        
+        if (progress >= 1) {
+            gameState.healthRestoreActive = false;
+            gameState.health = gameState.healthRestoreTarget;
+        }
+    }
+    
+    // Update ammo recharge
+    if (gameState.currentAmmo < gameState.maxAmmo) {
+        gameState.ammoRechargeTimer++;
+        if (gameState.ammoRechargeTimer >= gameState.ammoRechargeRate) {
+            // Recharge one shot
+            gameState.ammoFlash[gameState.currentAmmo] = 1; // Flash the newly recharged ammo
+            gameState.currentAmmo++;
+            gameState.ammoRechargeTimer = 0;
+        }
+    }
+    
+    // Update ammo flash animations
+    for (let i = 0; i < gameState.ammoFlash.length; i++) {
+        if (gameState.ammoFlash[i] > 0) {
+            gameState.ammoFlash[i] -= 0.05;
+            if (gameState.ammoFlash[i] < 0) gameState.ammoFlash[i] = 0;
+        }
+    }
+    
+    // Update player (for powerup visuals)
+    player.update();
+    
+    // Update enemies (optimized with for loop and in-place filtering)
+    for (let i = gameState.enemies.length - 1; i >= 0; i--) {
+        if (!gameState.enemies[i].alive) {
+            gameState.enemies.splice(i, 1);
+        }
+    }
+    for (let i = 0, len = gameState.enemies.length; i < len; i++) {
+        gameState.enemies[i].update();
+    }
+    
+    // Update boss
+    if (gameState.boss && gameState.boss.alive) {
+        gameState.boss.update(FIXED_TIMESTEP);
+    }
+    
+    // Update projectiles (optimized)
+    for (let i = gameState.projectiles.length - 1; i >= 0; i--) {
+        if (!gameState.projectiles[i].alive) {
+            gameState.projectiles.splice(i, 1);
+        }
+    }
+    for (let i = 0, len = gameState.projectiles.length; i < len; i++) {
+        gameState.projectiles[i].update();
+    }
+    
+    // Update boss projectiles (optimized)
+    for (let i = gameState.bossProjectiles.length - 1; i >= 0; i--) {
+        if (!gameState.bossProjectiles[i].alive) {
+            gameState.bossProjectiles.splice(i, 1);
+        }
+    }
+    for (let i = 0, len = gameState.bossProjectiles.length; i < len; i++) {
+        gameState.bossProjectiles[i].update();
+    }
+    
+    // Update combo timer for visual effects
+    if (gameState.comboTimer > 0) {
+        gameState.comboTimer--;
+    }
+    
+    // Update multiplier flash/scale animation with easing
+    if (gameState.multiplierAnimTimer > 0) {
+        gameState.multiplierAnimTimer--;
+        
+        // Calculate progress (0 = start, 1 = end)
+        const progress = 1 - (gameState.multiplierAnimTimer / gameState.multiplierAnimDuration);
+        
+        // Easing function: fast start (ease-out) for expansion, then slow down at peak, then shrink
+        // First 40% of time: expand (ease-out - starts fast, slows at peak)
+        // Last 60% of time: shrink (ease-in - starts slow, speeds up)
+        const expandPhase = 0.4;
+        
+        if (progress < expandPhase) {
+            // Expanding phase - ease-out (starts fast, slows down at peak)
+            const expandProgress = progress / expandPhase;
+            // Ease-out cubic: 1 - (1-t)^3
+            const eased = 1 - Math.pow(1 - expandProgress, 3);
+            gameState.multiplierFlash = eased;
+            gameState.multiplierScale = 1 + eased * 7; // Up to 8x
+        } else {
+            // Shrinking phase - ease-in (starts slow, speeds up)
+            const shrinkProgress = (progress - expandPhase) / (1 - expandPhase);
+            // Ease-in cubic: t^3
+            const eased = Math.pow(shrinkProgress, 2);
+            gameState.multiplierFlash = 1 - eased;
+            gameState.multiplierScale = 1 + (1 - eased) * 7;
+        }
+    } else {
+        gameState.multiplierFlash = 0;
+        gameState.multiplierScale = 1;
+    }
+    
+    // Update combo break effect
+    if (gameState.comboBreakTimer > 0) {
+        gameState.comboBreakTimer--;
+        
+        // Update combo break particles based on type (optimized)
+        for (let i = 0, len = gameState.comboBreakParticles.length; i < len; i++) {
+            const p = gameState.comboBreakParticles[i];
+            if (p.type === 'eraseLine') {
+                // Erase lines sweep across
+                p.progress += 0.04;
+                if (p.progress > 1.2) {
+                    p.alpha = 0; // Mark for removal
+                } else if (p.progress > 0.8) {
+                    p.alpha -= 0.05; // Fade out at end
+                }
+            } else if (p.type === 'glitch') {
+                // Glitch particles drift slowly and fade
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                p.alpha = Math.max(0, p.life / 50);
+            }
+        }
+        
+        // Remove dead particles
+        gameState.comboBreakParticles = gameState.comboBreakParticles.filter(p => p.alpha > 0 && (p.life === undefined || p.life > 0));
+    }
+    
+    // Powerup spawning and update
+    if (!gameState.bossActive) {
+        // Check if should spawn powerup (random 10-20 second interval)
+        if (!gameState.powerup && gameTimestamp - gameState.lastPowerupSpawn > gameState.powerupSpawnInterval) {
+            spawnPowerup();
+            gameState.lastPowerupSpawn = gameTimestamp;
+            // Set next spawn interval randomly between 10-20 seconds
+            gameState.powerupSpawnInterval = 10000 + Math.random() * 10000;
+        }
+        
+        // Update powerup
+        if (gameState.powerup) {
+            gameState.powerup.update();
+            if (!gameState.powerup.alive) {
+                gameState.powerup = null;
+            }
+        }
+    } else {
+        // Remove powerup during boss fight
+        gameState.powerup = null;
+    }
+    
+    // Update particles (optimized with cap)
+    for (let i = particles.length - 1; i >= 0; i--) {
+        if (particles[i].life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+    // Cap particles to prevent performance issues (keeps newest particles)
+    const MAX_PARTICLES = 150;
+    if (particles.length > MAX_PARTICLES) {
+        particles.splice(0, particles.length - MAX_PARTICLES);
+    }
+    for (let i = 0, len = particles.length; i < len; i++) {
+        particles[i].update();
+    }
+    
+    // Update bomb explosions
+    for (let i = bombExplosions.length - 1; i >= 0; i--) {
+        if (!bombExplosions[i].update()) {
+            bombExplosions.splice(i, 1);
+        }
+    }
+}
 
 function gameLoop(timestamp) {
     try {
-        const deltaTime = timestamp - lastTime;
+        // Calculate real time elapsed since last frame
+        const frameTime = Math.min(timestamp - lastTime, MAX_FRAME_TIME);
         lastTime = timestamp;
         
         // CRITICAL: Reset canvas transform to identity at start of each frame
@@ -9292,219 +9516,18 @@ function gameLoop(timestamp) {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         if (gameState.running && !gameState.paused) {
-        // Spawn enemies
-        if (!gameState.bossActive && gameState.enemiesDefeated < gameState.enemiesToSpawn) {
-            if (timestamp - gameState.lastSpawnTime > CONFIG.enemySpawnRate - gameState.level * 50) {
-                spawnEnemy();
-                gameState.lastSpawnTime = timestamp;
-            }
-        }
-        
-        // Check if boss should appear
-        if (!gameState.bossActive && gameState.enemiesDefeated >= gameState.enemiesToSpawn && gameState.enemies.length === 0) {
-            startBossFight();
-        }
-        
-        // Check if level complete
-        if (gameState.bossActive && gameState.boss && !gameState.boss.alive) {
-            levelComplete();
-        }
-        
-        // Update health restore animation
-        if (gameState.healthRestoreActive) {
-            gameState.healthRestoreTimer++;
-            const progress = Math.min(1, gameState.healthRestoreTimer / gameState.healthRestoreDuration);
-            // Ease-out animation for smooth fill
-            const eased = 1 - Math.pow(1 - progress, 3);
-            gameState.health = gameState.healthRestoreStart + 
-                (gameState.healthRestoreTarget - gameState.healthRestoreStart) * eased;
+            // Accumulate real time and run fixed timestep updates
+            accumulator += frameTime;
             
-            // Spawn healing particles during animation
-            if (Math.random() < 0.3) {
-                const angle = Math.random() * Math.PI * 2;
-                const dist = 30 + Math.random() * 60;
-                const particle = new Particle(
-                    player.x + Math.cos(angle) * dist,
-                    player.y + Math.sin(angle) * dist,
-                    '#00ff00'
-                );
-                particle.vx = -Math.cos(angle) * 2;
-                particle.vy = -Math.sin(angle) * 2;
-                particles.push(particle);
-            }
-            
-            if (progress >= 1) {
-                gameState.healthRestoreActive = false;
-                gameState.health = gameState.healthRestoreTarget;
+            // Run game logic in fixed timesteps to maintain consistent speed
+            // On slow computers: runs multiple updates per frame to catch up
+            // On fast computers: may skip frames to maintain consistent speed
+            while (accumulator >= FIXED_TIMESTEP) {
+                updateGame();
+                gameTimestamp += FIXED_TIMESTEP;
+                accumulator -= FIXED_TIMESTEP;
             }
         }
-        
-        // Update ammo recharge
-        if (gameState.currentAmmo < gameState.maxAmmo) {
-            gameState.ammoRechargeTimer++;
-            if (gameState.ammoRechargeTimer >= gameState.ammoRechargeRate) {
-                // Recharge one shot
-                gameState.ammoFlash[gameState.currentAmmo] = 1; // Flash the newly recharged ammo
-                gameState.currentAmmo++;
-                gameState.ammoRechargeTimer = 0;
-            }
-        }
-        
-        // Update ammo flash animations
-        for (let i = 0; i < gameState.ammoFlash.length; i++) {
-            if (gameState.ammoFlash[i] > 0) {
-                gameState.ammoFlash[i] -= 0.05;
-                if (gameState.ammoFlash[i] < 0) gameState.ammoFlash[i] = 0;
-            }
-        }
-        
-        // Update player (for powerup visuals)
-        player.update();
-        
-        // Update enemies (optimized with for loop and in-place filtering)
-        for (let i = gameState.enemies.length - 1; i >= 0; i--) {
-            if (!gameState.enemies[i].alive) {
-                gameState.enemies.splice(i, 1);
-            }
-        }
-        for (let i = 0, len = gameState.enemies.length; i < len; i++) {
-            gameState.enemies[i].update();
-        }
-        
-        // Update boss
-        if (gameState.boss && gameState.boss.alive) {
-            gameState.boss.update(deltaTime);
-        }
-        
-        // Update projectiles (optimized)
-        for (let i = gameState.projectiles.length - 1; i >= 0; i--) {
-            if (!gameState.projectiles[i].alive) {
-                gameState.projectiles.splice(i, 1);
-            }
-        }
-        for (let i = 0, len = gameState.projectiles.length; i < len; i++) {
-            gameState.projectiles[i].update();
-        }
-        
-        // Update boss projectiles (optimized)
-        for (let i = gameState.bossProjectiles.length - 1; i >= 0; i--) {
-            if (!gameState.bossProjectiles[i].alive) {
-                gameState.bossProjectiles.splice(i, 1);
-            }
-        }
-        for (let i = 0, len = gameState.bossProjectiles.length; i < len; i++) {
-            gameState.bossProjectiles[i].update();
-        }
-        
-        // Update combo timer for visual effects
-        if (gameState.comboTimer > 0) {
-            gameState.comboTimer--;
-        }
-        
-        // Update multiplier flash/scale animation with easing
-        if (gameState.multiplierAnimTimer > 0) {
-            gameState.multiplierAnimTimer--;
-            
-            // Calculate progress (0 = start, 1 = end)
-            const progress = 1 - (gameState.multiplierAnimTimer / gameState.multiplierAnimDuration);
-            
-            // Easing function: fast start (ease-out) for expansion, then slow down at peak, then shrink
-            // First 40% of time: expand (ease-out - starts fast, slows at peak)
-            // Last 60% of time: shrink (ease-in - starts slow, speeds up)
-            const expandPhase = 0.4;
-            
-            if (progress < expandPhase) {
-                // Expanding phase - ease-out (starts fast, slows down at peak)
-                const expandProgress = progress / expandPhase;
-                // Ease-out cubic: 1 - (1-t)^3
-                const eased = 1 - Math.pow(1 - expandProgress, 3);
-                gameState.multiplierFlash = eased;
-                gameState.multiplierScale = 1 + eased * 7; // Up to 8x
-            } else {
-                // Shrinking phase - ease-in (starts slow, speeds up)
-                const shrinkProgress = (progress - expandPhase) / (1 - expandPhase);
-                // Ease-in cubic: t^3
-                const eased = Math.pow(shrinkProgress, 2);
-                gameState.multiplierFlash = 1 - eased;
-                gameState.multiplierScale = 1 + (1 - eased) * 7;
-            }
-        } else {
-            gameState.multiplierFlash = 0;
-            gameState.multiplierScale = 1;
-        }
-        
-        // Update combo break effect
-        if (gameState.comboBreakTimer > 0) {
-            gameState.comboBreakTimer--;
-            
-            // Update combo break particles based on type (optimized)
-            for (let i = 0, len = gameState.comboBreakParticles.length; i < len; i++) {
-                const p = gameState.comboBreakParticles[i];
-                if (p.type === 'eraseLine') {
-                    // Erase lines sweep across
-                    p.progress += 0.04;
-                    if (p.progress > 1.2) {
-                        p.alpha = 0; // Mark for removal
-                    } else if (p.progress > 0.8) {
-                        p.alpha -= 0.05; // Fade out at end
-                    }
-                } else if (p.type === 'glitch') {
-                    // Glitch particles drift slowly and fade
-                    p.x += p.vx;
-                    p.y += p.vy;
-                    p.life--;
-                    p.alpha = Math.max(0, p.life / 50);
-                }
-            }
-            
-            // Remove dead particles
-            gameState.comboBreakParticles = gameState.comboBreakParticles.filter(p => p.alpha > 0 && (p.life === undefined || p.life > 0));
-        }
-        
-        // Powerup spawning and update
-        if (!gameState.bossActive) {
-            // Check if should spawn powerup (random 10-20 second interval)
-            if (!gameState.powerup && timestamp - gameState.lastPowerupSpawn > gameState.powerupSpawnInterval) {
-                spawnPowerup();
-                gameState.lastPowerupSpawn = timestamp;
-                // Set next spawn interval randomly between 10-20 seconds
-                gameState.powerupSpawnInterval = 10000 + Math.random() * 10000;
-            }
-            
-            // Update powerup
-            if (gameState.powerup) {
-                gameState.powerup.update();
-                if (!gameState.powerup.alive) {
-                    gameState.powerup = null;
-                }
-            }
-        } else {
-            // Remove powerup during boss fight
-            gameState.powerup = null;
-        }
-        
-        // Update particles (optimized with cap)
-        for (let i = particles.length - 1; i >= 0; i--) {
-            if (particles[i].life <= 0) {
-                particles.splice(i, 1);
-            }
-        }
-        // Cap particles to prevent performance issues (keeps newest particles)
-        const MAX_PARTICLES = 150;
-        if (particles.length > MAX_PARTICLES) {
-            particles.splice(0, particles.length - MAX_PARTICLES);
-        }
-        for (let i = 0, len = particles.length; i < len; i++) {
-            particles[i].update();
-        }
-        
-        // Update bomb explosions
-        for (let i = bombExplosions.length - 1; i >= 0; i--) {
-            if (!bombExplosions[i].update()) {
-                bombExplosions.splice(i, 1);
-            }
-        }
-    }
     
     // Draw background
     drawBackground();
