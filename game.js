@@ -1723,7 +1723,7 @@ const BOSS_WORDS = [
     TYPING_WORDS.hard.slice(0, 20)
 ];
 
-// Boss types - each level has a unique boss (speeds 2x for fixed timestep)
+// Boss types - each level has a unique boss (speeds 2x + 20% boost for fixed timestep)
 const BOSS_TYPES = [
     {
         name: 'SHADOW WRAITH',
@@ -1731,7 +1731,7 @@ const BOSS_TYPES = [
         secondaryColor: '#2d0a4e',
         eyeColor: '#ff00ff',
         auraColor: 'rgba(106, 13, 173, 0.3)',
-        speed: 2.6,
+        speed: 3.1,
         projectileColor: '#9932cc',
         pattern: 'wander',
         attackType: 'voidBeam', // Dark energy beam that cuts across screen
@@ -1743,7 +1743,7 @@ const BOSS_TYPES = [
         secondaryColor: '#8b0000',
         eyeColor: '#ffff00',
         auraColor: 'rgba(255, 69, 0, 0.3)',
-        speed: 4.0,
+        speed: 4.8,
         projectileColor: '#ff6600',
         pattern: 'aggressive',
         attackType: 'meteor', // Giant fireball that explodes
@@ -1755,7 +1755,7 @@ const BOSS_TYPES = [
         secondaryColor: '#004466',
         eyeColor: '#ffffff',
         auraColor: 'rgba(0, 191, 255, 0.3)',
-        speed: 1.6,
+        speed: 1.9,
         projectileColor: '#87ceeb',
         pattern: 'slow',
         attackType: 'iceSpike', // Giant ice spike that shatters
@@ -1767,7 +1767,7 @@ const BOSS_TYPES = [
         secondaryColor: '#b8860b',
         eyeColor: '#00ffff',
         auraColor: 'rgba(255, 215, 0, 0.3)',
-        speed: 5.0,
+        speed: 6.0,
         projectileColor: '#ffff00',
         pattern: 'erratic',
         attackType: 'lightning', // Multiple lightning bolts
@@ -1779,7 +1779,7 @@ const BOSS_TYPES = [
         secondaryColor: '#3d1a5c',   // Deep purple (visible)
         eyeColor: '#ff00ff',         // Bright magenta eyes
         auraColor: 'rgba(150, 50, 200, 0.6)', // Visible purple aura
-        speed: 3.0,
+        speed: 3.6,
         projectileColor: '#9932cc',  // Bright orchid purple
         pattern: 'teleport',
         attackType: 'blackHole', // Dark singularity that pulls
@@ -1791,7 +1791,7 @@ const BOSS_TYPES = [
         secondaryColor: '#7b1fa2',
         eyeColor: '#00ff00',
         auraColor: 'rgba(224, 64, 251, 0.3)',
-        speed: 3.6,
+        speed: 4.3,
         projectileColor: '#ce93d8',
         pattern: 'circular',
         attackType: 'laserBeam', // Continuous beam
@@ -1803,7 +1803,7 @@ const BOSS_TYPES = [
         secondaryColor: '#006400',
         eyeColor: '#ff0000',
         auraColor: 'rgba(50, 205, 50, 0.4)',
-        speed: 2.4,
+        speed: 2.9,
         projectileColor: '#7cfc00',
         pattern: 'wander',
         attackType: 'toxicCloud', // Spreading poison cloud
@@ -1815,7 +1815,7 @@ const BOSS_TYPES = [
         secondaryColor: '#4a0000',
         eyeColor: '#ff6666',
         auraColor: 'rgba(220, 20, 60, 0.4)',
-        speed: 3.2,
+        speed: 3.8,
         projectileColor: '#ff0000',
         pattern: 'aggressive',
         attackType: 'bloodOrb', // Giant blood orb that explodes into smaller orbs
@@ -1931,11 +1931,11 @@ function getBaseNoteName(noteName) {
     return noteName.replace(/\d+$/, '');
 }
 
-// Game configuration - DOUBLED ARENA, DOUBLED SPEEDS for fixed timestep
+// Game configuration - speeds tuned for fixed timestep (+20% boost)
 const CONFIG = {
     playerSize: 80,
-    enemyBaseSpeed: 1.04,      // 2x speed for fixed timestep (was 0.52)
-    enemySpeedVariance: 0.24,  // 2x variance to match
+    enemyBaseSpeed: 1.25,      // 2x speed + 20% boost for fixed timestep
+    enemySpeedVariance: 0.29,  // variance to match
     enemySpawnRate: 1250, // Doubled enemy rate (was 2500)
     enemySize: 60,
     projectileSpeed: 25,
@@ -1945,7 +1945,7 @@ const CONFIG = {
     bossDamageToPlayer: 15,    // Reduced from 25 - similar to enemies
     enemyDamageToPlayer: 10,
     bossHealth: 5,
-    bossCircleSpeed: 0.006,    // 2x speed for fixed timestep (was 0.003)
+    bossCircleSpeed: 0.0072,   // 2x speed + 20% boost for fixed timestep
     gridSize: 80
 };
 
@@ -4015,7 +4015,7 @@ class Powerup {
             this.targetY = this.y;
         }
         
-        this.speed = 4; // 2x for fixed timestep
+        this.speed = 4.8; // 2x + 20% boost
         this.arrived = false;
         
         // Timer (20 seconds = 1200 frames at 60fps)
@@ -4745,10 +4745,10 @@ class Boss {
         // Boss entrance state - phases: 'entering', 'countdown', 'revealing', 'active'
         this.entrancePhase = 'entering';
         this.entering = true;
-        this.entranceSpeed = 2.4; // Slow, imposing entrance (2x for fixed timestep)
+        this.entranceSpeed = 2.9; // Entrance speed (2x + 20% boost)
         this.countdownNumber = 3; // 3, 2, 1 countdown
         this.countdownTimer = 0;
-        this.countdownDuration = 120; // Each number lasts 2 seconds (120 frames)
+        this.countdownDuration = 120; // Each number lasts exactly 2 seconds (120 frames at 60fps)
         this.countdownScale = 5.0; // Start at 5x player size, shrink to small
         this.revealTimer = 0;
         this.revealDuration = 90; // ~1.5 seconds for reveal animation
@@ -5529,7 +5529,7 @@ class Boss {
             
         } else if (pattern === 'circular') {
             // Crystal Dragon - circles around the EDGE of the arena
-            this.circleAngle += 0.012 * this.speedMultiplier; // 2x for fixed timestep
+            this.circleAngle += 0.0144 * this.speedMultiplier; // 2x + 20% boost
             
             // Calculate position on an ellipse that follows the arena edges
             // Use asymmetric ellipse - smaller on bottom to leave room for note boxes
