@@ -4015,7 +4015,7 @@ class Powerup {
             this.targetY = this.y;
         }
         
-        this.speed = 2;
+        this.speed = 4; // 2x for fixed timestep
         this.arrived = false;
         
         // Timer (20 seconds = 1200 frames at 60fps)
@@ -4745,7 +4745,7 @@ class Boss {
         // Boss entrance state - phases: 'entering', 'countdown', 'revealing', 'active'
         this.entrancePhase = 'entering';
         this.entering = true;
-        this.entranceSpeed = 1.2; // Slow, imposing entrance
+        this.entranceSpeed = 2.4; // Slow, imposing entrance (2x for fixed timestep)
         this.countdownNumber = 3; // 3, 2, 1 countdown
         this.countdownTimer = 0;
         this.countdownDuration = 120; // Each number lasts 2 seconds (120 frames)
@@ -5472,12 +5472,12 @@ class Boss {
         
         // Recover from hit slowdown
         if (this.speedMultiplier < 1) {
-            this.speedMultiplier = Math.min(1, this.speedMultiplier + 0.01);
+            this.speedMultiplier = Math.min(1, this.speedMultiplier + 0.02); // 2x for fixed timestep
         }
         
         // Fade hit glow
         if (this.hitGlow > 0) {
-            this.hitGlow = Math.max(0, this.hitGlow - 0.015);
+            this.hitGlow = Math.max(0, this.hitGlow - 0.03); // 2x for fixed timestep
         }
         
         // Word timer for crazy difficulty (typing mode only)
@@ -5507,7 +5507,7 @@ class Boss {
         if (pattern === 'teleport') {
             // Void Lord - teleports to random edge positions
             this.teleportTimer += deltaTime;
-            this.teleportFlash = Math.max(0, this.teleportFlash - 0.05);
+            this.teleportFlash = Math.max(0, this.teleportFlash - 0.10); // 2x for fixed timestep
             
             if (this.teleportTimer >= this.teleportInterval) {
                 this.pickEdgeTeleportTarget();
@@ -5529,7 +5529,7 @@ class Boss {
             
         } else if (pattern === 'circular') {
             // Crystal Dragon - circles around the EDGE of the arena
-            this.circleAngle += 0.006 * this.speedMultiplier;
+            this.circleAngle += 0.012 * this.speedMultiplier; // 2x for fixed timestep
             
             // Calculate position on an ellipse that follows the arena edges
             // Use asymmetric ellipse - smaller on bottom to leave room for note boxes
@@ -8373,9 +8373,9 @@ class LightRay {
         this.color = color;
         this.length = 20 + Math.random() * 40;
         this.maxLength = this.length;
-        this.speed = 8 + Math.random() * 8;
+        this.speed = 16 + Math.random() * 16; // 2x for fixed timestep
         this.life = 1;
-        this.decay = 0.03 + Math.random() * 0.02;
+        this.decay = 0.06 + Math.random() * 0.04; // 2x for fixed timestep
         this.width = 2 + Math.random() * 3;
     }
 
